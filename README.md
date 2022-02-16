@@ -56,8 +56,21 @@ which will be building forgiva_server:<version> image for Docker containers.
 You can test simply launched instance by using local test file;
 
 ```
-$ cat ../etc/test.json | curl  -d @- http://localhost:3000/generate
+$ cat etc/test.json | curl  -d @- http://localhost:3000/generate
 ```
+
+A result should be returning same as below;
+
+```
+{
+    "animal": "Spider",
+    "password": "334a745e327a73562162716c79507b29"
+}
+```
+
+
+
+
 
 ### Sanity test
 
@@ -188,12 +201,56 @@ $ afl-fuzz -i in -o out -t 20000  -- ./forgiva_server -s
 
 ### Benchmarking
 
-You can test for loads with 'hey'
+You can test for loads with 'hey' at https://github.com/rakyll/hey
 
 ```
-$ sudo apt install golang-go
-$ go get -u github.com/rakyll/hey
-$ hey -D ../etc/test.json -t 0 http://localhost:3000/generate
+$ hey -D ../etc/test.json -n 100 -t 0 http://localhost:3000/generate
+
+
+Summary:
+  Total:        274.2618 secs
+  Slowest:      268.8517 secs
+  Fastest:      5.4093 secs
+  Average:      75.6100 secs
+  Requests/sec: 0.3646
+
+  Total data:   7800 bytes
+  Size/request: 78 bytes
+
+Response time histogram:
+  5.409 [1]     |■
+  31.754 [55]   |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+  58.098 [5]    |■■■■
+  84.442 [4]    |■■■
+  110.786 [5]   |■■■■
+  137.130 [5]   |■■■■
+  163.475 [5]   |■■■■
+  189.819 [5]   |■■■■
+  216.163 [4]   |■■■
+  242.507 [5]   |■■■■
+  268.852 [6]   |■■■■
+
+
+Latency distribution:
+  10% in 13.6244 secs
+  25% in 13.6786 secs
+  50% in 19.0613 secs
+  75% in 140.2735 secs
+  90% in 222.4520 secs
+  95% in 249.7381 secs
+  99% in 268.8517 secs
+
+Details (average, fastest, slowest):
+  DNS+dialup:   0.0002 secs, 5.4093 secs, 268.8517 secs
+  DNS-lookup:   0.0001 secs, 0.0000 secs, 0.0005 secs
+  req write:    0.0000 secs, 0.0000 secs, 0.0002 secs
+  resp wait:    75.6097 secs, 5.4093 secs, 268.8515 secs
+  resp read:    0.0000 secs, 0.0000 secs, 0.0001 secs
+
+Status code distribution:
+  [200] 100 responses
+
+
 ```
 
 ### Valgrind Test

@@ -18,76 +18,67 @@ static void signal_handler(int sig_num) {
 }
 
 
-static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
-	(void) nc;
-	(void) ev_data;
+static void ev_handler(struct mg_connection *nc, 
+						int ev, 
+						void *ev_data,
+						void *fn_data) {
 
 	switch (ev) {
-		case MG_EV_HTTP_REQUEST: {
-			struct http_message *hm = (struct http_message *) ev_data;
-			if (mg_vcmp(&hm->uri, "/generate") == 0) {
-				byte_data *body = f_byte_data_new_with_data(hm->body.p, 
+		case MG_EV_HTTP_MSG: {
+			struct mg_http_message *hm = (struct mg_http_message *) ev_data;
+			if (mg_http_match_uri(hm, "/generate")) {
+				byte_data *body 			= f_byte_data_new_with_data(
+															hm->body.ptr, 
 															hm->body.len);
-				forgiva_options *options = parse_options_from_json(body);
+				forgiva_options *options 	= parse_options_from_json(body);
 				if (options != NULL) {
 					f_byte *rep_json = forgiva_generate_pass_as_json(options);
 					if (rep_json != NULL) {
 						// Send OK response and JSON result
-						mg_send_head(nc, 200, 
-									strlen(rep_json), 
-									"Content-Type: text/plain");
-						mg_printf(nc, "%s", rep_json);
+						mg_http_reply(nc, 200, 
+							"Content-Type: application/json\r\n", 
+						"%s", rep_json);		
 						f_free(rep_json);
 					} else {
 						WARNF("Invalid result");
 						// In case of any problem send 503 - 
 						// Service Unavailable Code.
-						mg_send_head(nc, 503, 0, NULL);
+						mg_http_reply(nc, 503, "", "", NULL);
 					}
 					free_forgiva_options(options);
 				} else {
-					mg_send_head(nc, 503, 0, NULL);
+					mg_http_reply(nc, 503, "", "", NULL);
 				}
 				f_byte_data_free(body);
 			} else {
 				WARNF("Invalid request");
-				mg_send_head(nc, 503, 0, NULL);
+				mg_http_reply(nc, 503, "", "", NULL);
 			}
 			break;
-		}
-		case MG_EV_CLOSE: {
-			if (nc->user_data) nc->user_data = NULL;
 		}
 	}
 }
 
 void server_main(int port) {
 
-	char s_http_port[6];
-	f_itoa(port,s_http_port,10);
+	char s_url[64];
 	struct mg_mgr mgr;
 	struct mg_connection *nc;
 	int i;
 
 
+	sprintf(s_url,"http://0.0.0.0:%d",port);
+
 	signal(SIGTERM, signal_handler);
 	signal(SIGINT, signal_handler);
 
-	mg_mgr_init(&mgr, NULL);
+	mg_mgr_init(&mgr);
 
-	nc = mg_bind(&mgr, s_http_port, ev_handler);
-	if (nc == NULL) {
-		FATAL("Failed to bind web server.");
-	}
+  	mg_http_listen(&mgr, s_url, ev_handler, NULL);  // Create HTTP listener
 
-	mg_set_protocol_http_websocket(nc);
+	OKF("Web server started on  %s\n", s_url);
 
-
-
-	OKF("Web server started on port %s\n", s_http_port);
-	while (s_received_signal == 0) {
-		mg_mgr_poll(&mgr, 200);
-	}
+	for (;s_received_signal == 0;) mg_mgr_poll(&mgr, 1000);    
 
 	mg_mgr_free(&mgr);
 

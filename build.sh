@@ -11,7 +11,7 @@ if [[ "$1" == "release" ]] || [[ "$1" == "image" ]] || [[ "$1" == "test" ]]; the
     WIN_X64_DIR_REL=build/mingw64-release
     WIN_X64_DIR_DBG=build/mingw64-debug
 
-    TAGV=`git describe --tags --long`
+    TAGV=`git describe --tags --long || echo -n 'main'`
     REV=`git log --oneline | wc -l | tr -d ' '`
     VER=${TAGV%%-*}-$REV
 
