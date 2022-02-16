@@ -1,0 +1,16 @@
+build
+Builds/VisualStudio2015/Release
+Builds/VisualStudio2015/Debug
+Builds/VisualStudio2015.x64/Release
+Builds/VisualStudio2015.x64/x64/
+Builds/VisualStudio2013/
+Builds/WindowsMakefile/build/
+Builds/LinuxMakefile/build.i386/
+Builds/LinuxMakefile/build.amd64/
+Builds/MacOSX/build
+Builds/iOS/
+Builds/Android/
+Builds/AndroidStudio/
+doxygen/doc
+.DS_Store
+etc/topsites/pngs/*.png

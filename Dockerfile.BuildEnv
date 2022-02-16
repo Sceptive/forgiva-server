@@ -1,0 +1,132 @@
+FROM ubuntu:18.04
+RUN apt update --yes && \
+    apt install --no-install-recommends --yes \
+    git \
+    alien \
+    wget  \
+    cmake \
+    mingw-w64 \
+    mingw-w64-x86-64-dev \
+    mingw-w64-common \
+    build-essential \
+    ca-certificates
+
+
+ENV WORK_DIR=/work
+ENV COMPILERS_DIR=${WORK_DIR}/cc
+
+RUN mkdir -p ${WORK_DIR}
+RUN mkdir -p ${COMPILERS_DIR}
+WORKDIR ${WORK_DIR}
+
+RUN git clone https://github.com/Sceptive/musl-cross-make
+
+
+RUN \
+    (cd musl-cross-make && \
+    echo TARGET=x86_64-linux-musl > config.mak && \
+    echo OUTPUT=${COMPILERS_DIR} >> config.mak && \
+    echo MUSL_VER=1.1.24 >> config.mak && \
+    make -j 8 && \
+    make install && make clean && cd ..)
+
+
+COPY \
+    etc/openssl-1.0.2n.tar.gz \
+    /work/openssl-1.0.2n.tar.gz
+
+
+
+RUN \
+    (export OPENSSL_BUILD_DIR=${WORK_DIR}/openssl-build-x86_64 && \
+    export BUILD_DIR=${WORK_DIR}/build/linux-x86_64 && \
+    mkdir -p $OPENSSL_BUILD_DIR && \
+    echo "Building for x86_64 - $OPENSSL_BUILD_DIR - $BUILD_DIR" && \
+    echo -n "linux-x86_64" > openssl-arch.txt &&  \
+    export OPENSSL_PARAMS=`cat openssl-arch.txt` && \
+    rm -rf openssl-1.0.2n && \
+    echo "Extracting OpenSSL sources for x86_64 - $OPENSSL_PARAMS" && \
+	tar zxvf openssl-1.0.2n.tar.gz 2>&1 > /dev/null && \
+	cd openssl-1.0.2n && \
+	echo "Configuring OpenSSL x86_64"  && \
+	CC="${COMPILERS_DIR}/bin/x86_64-linux-musl-gcc -static" ./Configure no-shared $OPENSSL_PARAMS --openssldir=$OPENSSL_BUILD_DIR  && \
+	echo "Making for x86_64" && \
+    make -j 4 2>&1 > /dev/null && \
+	echo "Installing for x86_64" && \
+    make install 2>&1 > /dev/null && \
+    make clean)
+
+
+RUN \
+    (export OPENSSL_BUILD_DIR=${WORK_DIR}/openssl-build-mingw64 && \
+    export BUILD_DIR=${WORK_DIR}/build/mingw64 && \
+    export TOOLCHAIN_PREFIX=x86_64-w64-mingw32 && \
+    mkdir -p $OPENSSL_BUILD_DIR && \
+    echo "Building for Mingw64 $OPENSSL_BUILD_DIR - $BUILD_DIR" && \
+    export OPENSSL_PARAMS="mingw64 no-asm" && \
+    rm -rf openssl-1.0.2n && \
+    echo "Extracting OpenSSL sources for Mingw64 $OPENSSL_PARAMS" && \
+	tar zxvf openssl-1.0.2n.tar.gz 2>&1 > /dev/null && \
+	cd openssl-1.0.2n && \
+	echo "Configuring OpenSSL Mingw64"  && \
+	CC="/usr/bin/${TOOLCHAIN_PREFIX}-gcc-posix" ./Configure no-shared $OPENSSL_PARAMS --openssldir=$OPENSSL_BUILD_DIR  && \
+	echo "Making for Mingw64" && \
+    make -j 4 2>&1 > /dev/null && \
+	echo "Installing for Mingw64 to $OPENSSL_BUILD_DIR " && \
+    make install  && \
+    make clean )
+
+
+
+
+COPY \
+    CMakeLists.txt \        
+    /work/
+COPY \
+    src \
+    /work/src
+
+RUN \ 
+    ( echo "Building Linux releases ... " && \
+    export OPENSSL_BUILD_DIR=${WORK_DIR}/openssl-build-x86_64 && \
+    export BUILD_DIR=${WORK_DIR}/build/linux-x86_64 && \
+    mkdir -p $BUILD_DIR-release && \
+    cd $BUILD_DIR-release && \
+    CC="${COMPILERS_DIR}/bin/x86_64-linux-musl-gcc -static" cmake -DOPENSSL_ROOT_DIR="$OPENSSL_BUILD_DIR" -DCMAKE_BUILD_TYPE=Release ../.. && \
+    make -j 8 && \
+    mkdir -p $BUILD_DIR-debug && \
+    cd $BUILD_DIR-debug && \
+    CC="${COMPILERS_DIR}/bin/x86_64-linux-musl-gcc -static" cmake -DOPENSSL_ROOT_DIR="$OPENSSL_BUILD_DIR" -DCMAKE_BUILD_TYPE=Debug -DFORGIVA_DEBUG=ON ../.. && \
+    make -j 8 )
+
+
+RUN \
+    (  echo "Building Window$ releases ... " && \
+    export OPENSSL_BUILD_DIR=${WORK_DIR}/openssl-build-mingw64 && \
+    export BUILD_DIR=${WORK_DIR}/build/mingw64 && \
+    export TOOLCHAIN_PREFIX=x86_64-w64-mingw32 && \
+    echo "set(CMAKE_SYSTEM_NAME Windows)" > mingw64-toolchain.cmake && \
+    echo "set(CMAKE_C_COMPILER ${TOOLCHAIN_PREFIX}-gcc-posix)" >> mingw64-toolchain.cmake && \
+    echo "set(CMAKE_CXX_COMPILER ${TOOLCHAIN_PREFIX}-g++-posix)" >> mingw64-toolchain.cmake && \
+    echo "set(CMAKE_RC_COMPILER ${TOOLCHAIN_PREFIX}-windres)" >> mingw64-toolchain.cmake && \
+    echo "set(CMAKE_FIND_ROOT_PATH /usr/${TOOLCHAIN_PREFIX})" >> mingw64-toolchain.cmake && \
+    echo "set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)" >> mingw64-toolchain.cmake && \
+    echo "set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)" >> mingw64-toolchain.cmake && \
+    echo "set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)" >> mingw64-toolchain.cmake && \
+    echo "set(OPENSSL_FOUND TRUE)"  >> mingw64-toolchain.cmake && \
+    echo "set(OPENSSL_ROOT_DIR ${OPENSSL_BUILD_DIR})"  >> mingw64-toolchain.cmake && \
+    echo "set(OPENSSL_INCLUDE_DIR ${OPENSSL_BUILD_DIR}/include)"  >> mingw64-toolchain.cmake && \
+    echo "set(OPENSSL_CRYPTO_LIBRARIES ${OPENSSL_BUILD_DIR}/lib/libcrypto.a)"  >> mingw64-toolchain.cmake && \
+    echo "set(OPENSSL_SSL_LIBRARIES ${OPENSSL_BUILD_DIR}/lib/libssl.a)"  >> mingw64-toolchain.cmake && \
+    echo "set(OPENSSL_LIBRARIES \${OPENSSL_SSL_LIBRARIES} \${OPENSSL_CRYPTO_LIBRARIES})"  >> mingw64-toolchain.cmake && \
+    mkdir -p $BUILD_DIR-release && \
+    cd $BUILD_DIR-release && \
+    cmake -DCMAKE_TOOLCHAIN_FILE="/work/mingw64-toolchain.cmake"  -DCMAKE_BUILD_TYPE=Release ../.. && \
+    make -j 8 && \
+    mkdir -p $BUILD_DIR-debug && \
+    cd $BUILD_DIR-debug && \
+    cmake -DCMAKE_TOOLCHAIN_FILE="/work/mingw64-toolchain.cmake" -DCMAKE_BUILD_TYPE=Debug -DFORGIVA_DEBUG=ON ../.. && \
+    make -j 8 )
+
+
+
