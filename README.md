@@ -47,6 +47,11 @@ $ ./build.sh image
 
 which will be building forgiva_server:<version> image for Docker containers.
 
+  - create debuggable binaries along with release versions with
+
+```
+$ ./build.sh debug
+```
 
 ## TESTING
 
@@ -67,9 +72,6 @@ A result should be returning same as below;
     "password": "334a745e327a73562162716c79507b29"
 }
 ```
-
-
-
 
 
 ### Sanity test

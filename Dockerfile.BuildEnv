@@ -14,7 +14,6 @@ RUN apt update --yes && \
 
 ENV WORK_DIR=/work
 ENV COMPILERS_DIR=${WORK_DIR}/cc
-
 RUN mkdir -p ${WORK_DIR}
 RUN mkdir -p ${COMPILERS_DIR}
 WORKDIR ${WORK_DIR}
@@ -77,6 +76,7 @@ RUN \
     make clean )
 
 
+ARG DEBUG_BUILD
 
 
 COPY \
@@ -94,10 +94,13 @@ RUN \
     cd $BUILD_DIR-release && \
     CC="${COMPILERS_DIR}/bin/x86_64-linux-musl-gcc -static" cmake -DOPENSSL_ROOT_DIR="$OPENSSL_BUILD_DIR" -DCMAKE_BUILD_TYPE=Release ../.. && \
     make -j 8 && \
-    mkdir -p $BUILD_DIR-debug && \
+    (if [ ! -z "$DEBUG_BUILD" ]; then \
+    (mkdir -p $BUILD_DIR-debug && \
     cd $BUILD_DIR-debug && \
     CC="${COMPILERS_DIR}/bin/x86_64-linux-musl-gcc -static" cmake -DOPENSSL_ROOT_DIR="$OPENSSL_BUILD_DIR" -DCMAKE_BUILD_TYPE=Debug -DFORGIVA_DEBUG=ON ../.. && \
-    make -j 8 )
+    make -j 8 ); \
+    fi) \
+    )
 
 
 RUN \
@@ -123,10 +126,13 @@ RUN \
     cd $BUILD_DIR-release && \
     cmake -DCMAKE_TOOLCHAIN_FILE="/work/mingw64-toolchain.cmake"  -DCMAKE_BUILD_TYPE=Release ../.. && \
     make -j 8 && \
-    mkdir -p $BUILD_DIR-debug && \
+    (if [ ! -z "$DEBUG_BUILD" ]; then \
+    (mkdir -p $BUILD_DIR-debug && \
     cd $BUILD_DIR-debug && \
     cmake -DCMAKE_TOOLCHAIN_FILE="/work/mingw64-toolchain.cmake" -DCMAKE_BUILD_TYPE=Debug -DFORGIVA_DEBUG=ON ../.. && \
-    make -j 8 )
+    make -j 8 ); \
+    fi) \
+    )
 
 
 

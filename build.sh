@@ -5,7 +5,7 @@ FS_HOME=$(dirname $(realpath ${BASH_SOURCE[0]}))
 
 cd ${FS_HOME}/
 
-if [[ "$1" == "release" ]] || [[ "$1" == "image" ]] || [[ "$1" == "test" ]]; then 
+if [[ "$*" == "release" ]] || [[ "$*" == "image" ]] || [[ "$*" == "test" ]] || [[ "$*" == "debug" ]]; then 
     LNX_X64_DIR_REL=build/linux-x86_64-release
     LNX_X64_DIR_DBG=build/linux-x86_64-debug
     WIN_X64_DIR_REL=build/mingw64-release
@@ -16,15 +16,16 @@ if [[ "$1" == "release" ]] || [[ "$1" == "image" ]] || [[ "$1" == "test" ]]; the
     VER=${TAGV%%-*}-$REV
 
 
-    (docker build -t forgiva_server_build -f Dockerfile.BuildEnv . && \
+    (docker build -t forgiva_server_build -f Dockerfile.BuildEnv `[[ "$*" == "debug" ]] && echo -n "--build-arg DEBUG_BUILD=true"` . && \
     mkdir -p build && \
     export id=$(docker create forgiva_server_build) && \
     docker cp $id:/work/$LNX_X64_DIR_REL/forgiva_server     build/forgiva_server-$VER-linux-x86_64-release && \
-    docker cp $id:/work/$LNX_X64_DIR_DBG/forgiva_server     build/forgiva_server-$VER-linux-x86_64-debug && \
+    (if [[ "$*" == "debug" ]] ; then docker cp $id:/work/$LNX_X64_DIR_DBG/forgiva_server     build/forgiva_server-$VER-linux-x86_64-debug ; fi) && \
     docker cp $id:/work/$WIN_X64_DIR_REL/forgiva_server.exe build/forgiva_server-$VER-mingw64-release.exe && \
-    docker cp $id:/work/$WIN_X64_DIR_DBG/forgiva_server.exe build/forgiva_server-$VER-mingw64-debug.exe && \
+    (if [[ "$*" == "debug" ]] ; then docker cp $id:/work/$WIN_X64_DIR_DBG/forgiva_server.exe build/forgiva_server-$VER-mingw64-debug.exe ; fi) && \
     docker rm -v $id && \
-    tar -C build -cJvf forgiva_server-$VER-cp-release.tar.xz forgiva_server-$VER-linux-x86_64-release forgiva_server-$VER-mingw64-release.exe 
+    tar -C build -cJvf forgiva_server-$VER-linux-x86_64-release.tar.xz forgiva_server-$VER-linux-x86_64-release 
+    tar -C build -cJvf forgiva_server-$VER-mingw64-release.tar.xz forgiva_server-$VER-mingw64-release.exe 
     )
     if [[ "$1" == "image" ]]; then
 
